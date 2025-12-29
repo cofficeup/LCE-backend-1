@@ -1,0 +1,152 @@
+<?php
+
+namespace App\Services\Invoice;
+
+class InvoiceService
+{
+    /**
+     * Create a draft invoice from a billing preview.
+     *
+     * NO database writes.
+     * NO User model dependency.
+     */
+    public function createDraft(
+        int $userId,
+        string $invoiceType,
+        array $billingPreview,
+        ?int $pickupId = null,
+        ?int $subscriptionId = null,
+        string $currency = 'USD'
+    ): array {
+        if (!in_array($invoiceType, ['PPO', 'subscription', 'overage'])) {
+            throw new \InvalidArgumentException('Invalid invoice type.');
+        }
+
+        $lines = [];
+        $subtotal = 0;
+
+        // -------------------------
+        // 1️⃣ Pricing lines
+        // -------------------------
+        if (isset($billingPreview['pricing'])) {
+            $pricing = $billingPreview['pricing'];
+
+            // PPO pricing
+            if ($invoiceType === 'PPO') {
+                // Base wash
+                $lines[] = $this->line(
+                    'base',
+                    'Laundry service',
+                    $pricing['weight_lbs'] ?? 1,
+                    $pricing['price_per_lb'] ?? $pricing['base_total'],
+                    $pricing['base_total']
+                );
+
+                // Pickup fee
+                if (!empty($pricing['pickup_fee'])) {
+                    $lines[] = $this->line(
+                        'fee',
+                        'Pickup fee',
+                        1,
+                        $pricing['pickup_fee'],
+                        $pricing['pickup_fee']
+                    );
+                }
+
+                // Service fee
+                if (!empty($pricing['service_fee'])) {
+                    $lines[] = $this->line(
+                        'fee',
+                        'Service fee',
+                        1,
+                        $pricing['service_fee'],
+                        $pricing['service_fee']
+                    );
+                }
+            }
+
+            // Subscription overage
+            if ($invoiceType !== 'PPO' && isset($pricing['overage_charge'])) {
+                if ($pricing['overage_charge'] > 0) {
+                    $lines[] = $this->line(
+                        'overage',
+                        'Overweight charge',
+                        $pricing['overweight_lbs'],
+                        $pricing['price_per_lb'],
+                        $pricing['overage_charge']
+                    );
+                }
+            }
+        }
+
+        // -------------------------
+        // 2️⃣ Credit line (negative)
+        // -------------------------
+        if (!empty($billingPreview['credits']['credits_used'])) {
+            $creditUsed = $billingPreview['credits']['credits_used'];
+
+            $lines[] = $this->line(
+                'credit',
+                'Credit applied',
+                1,
+                -$creditUsed,
+                -$creditUsed
+            );
+        }
+
+        // -------------------------
+        // 3️⃣ Totals
+        // -------------------------
+        foreach ($lines as $line) {
+            $subtotal += $line['amount'];
+        }
+
+        $subtotal = round($subtotal, 2);
+        $total = max(0, $subtotal);
+
+        // -------------------------
+        // 4️⃣ Invoice header (draft)
+        // -------------------------
+        $invoice = [
+            'user_id' => $userId,
+            'pickup_id' => $pickupId,
+            'subscription_id' => $subscriptionId,
+            'invoice_type' => $invoiceType,
+            'status' => 'draft',
+            'currency' => $currency,
+            'subtotal' => $subtotal,
+            'tax' => 0,
+            'total' => $total,
+            'issued_at' => now()->toDateTimeString(),
+        ];
+
+        return [
+            'invoice' => $invoice,
+            'invoice_lines' => $lines,
+            'totals' => [
+                'subtotal' => $subtotal,
+                'tax' => 0,
+                'total' => $total,
+            ],
+        ];
+    }
+
+    /**
+     * Helper to build an invoice line.
+     */
+    protected function line(
+        string $type,
+        string $description,
+        float $quantity,
+        float $unitPrice,
+        float $amount
+    ): array {
+        return [
+            'type' => $type,
+            'description' => $description,
+            'quantity' => round($quantity, 2),
+            'unit_price' => round($unitPrice, 2),
+            'amount' => round($amount, 2),
+        ];
+    }
+}

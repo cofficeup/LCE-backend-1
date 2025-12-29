@@ -6,40 +6,39 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up()
-{
-    Schema::create('lce_user_credits', function (Blueprint $table) {
-        $table->id();
+    public function up(): void
+    {
+        Schema::create('lce_user_credits', function (Blueprint $table) {
+            $table->id();
 
-        $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('user_id');
 
-        $table->enum('type', [
-            'welcome',
-            'promo',
-            'manual',
-            'refund'
-        ]);
+            $table->enum('type', [
+                'welcome',
+                'bonus',
+                'promo',
+                'referral',
+                'compensation',
+                'manual',
+                'refund'
+            ]);
 
-        $table->string('description', 255);
-        $table->decimal('amount', 10, 2);
-        $table->decimal('balance', 10, 2);
+            $table->string('description', 255);
+            $table->decimal('amount', 10, 2);
+            $table->decimal('balance', 10, 2);
 
-        $table->timestamp('expires_at')->nullable();
-        $table->boolean('used')->default(false);
+            $table->timestamp('expires_at')->nullable();
+            $table->boolean('used')->default(false);
 
-        $table->timestamps();
+            $table->timestamps();
 
-        $table->index('user_id');
-        $table->index('type');
-    });
-}
+            $table->index('user_id');
+            $table->index('type');
+        });
+    }
 
-public function down()
-{
-    Schema::dropIfExists('lce_user_credits');
-}
-
+    public function down(): void
+    {
+        Schema::dropIfExists('lce_user_credits');
+    }
 };

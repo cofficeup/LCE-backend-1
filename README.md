@@ -1,59 +1,253 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+🧺 LCE Backend (Laravel 12)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A modular, service-driven backend API for a laundry management platform supporting Pay-Per-Order (PPO), Subscriptions, Credits/Wallet, Billing, Invoices, and Pickup scheduling.
 
-## About Laravel
+This project is designed with clean architecture, domain-driven services, and future-ready integrations (Stripe, scheduling, admin tools).
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+📌 Project Status
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+🚧 Backend in active development
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Implemented
 
-## Learning Laravel
+Core domain services
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+API endpoints (preview flows)
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Pickup creation & billing preview
 
-## Laravel Sponsors
+Invoice domain design (draft logic)
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Laravel 12 API routing setup
 
-### Premium Partners
+Deferred (Planned)
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+Authentication (Sanctum / Breeze / JWT – TBD)
 
-## Contributing
+Stripe payment integration
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Persistent invoice storage
 
-## Code of Conduct
+Scheduling & recurring jobs
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Admin dashboards
 
-## Security Vulnerabilities
+🧠 Architecture Overview
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+This backend follows a Service-First Architecture:
 
-## License
+Controller (thin)
+   ↓
+Service Layer (business logic)
+   ↓
+Domain Models / DTOs
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Key Principles
+
+No business logic in controllers
+
+Services are deterministic & testable
+
+Stripe/payment logic is isolated
+
+Auth is decoupled from core logic
+
+Designed for legacy DB integration
+
+🗂️ Project Structure (Relevant)
+app/
+├── Services/
+│   ├── Subscription/
+│   │   └── SubscriptionService.php
+│   ├── Credit/
+│   │   └── CreditService.php
+│   ├── Pricing/
+│   │   └── PricingService.php
+│   ├── Billing/
+│   │   └── BillingService.php
+│   ├── Pickup/
+│   │   └── PickupService.php
+│   └── Invoice/
+│       └── InvoiceService.php
+│
+├── Http/
+│   └── Controllers/
+│       └── Api/
+│           └── V1/
+│               ├── PickupController.php
+│               ├── SubscriptionController.php
+│               ├── BillingController.php
+│               └── CreditController.php
+│
+routes/
+├── api.php
+├── web.php
+
+🔁 Core Domain Flows
+1️⃣ Pickup Flow
+Pickup Request
+ → PickupService
+ → BillingService (preview)
+ → PricingService + CreditService
+ → JSON Preview (no DB writes)
+
+
+Supports:
+
+PPO pickups
+
+Subscription pickups
+
+Overage billing preview
+
+2️⃣ Subscription Lifecycle
+
+Managed via SubscriptionService:
+
+create (pending)
+
+activate
+
+cancel
+
+renew
+
+calculateAvailableBags
+
+3️⃣ Billing & Pricing
+
+PricingService: pure calculations
+
+BillingService: orchestration & decisions
+
+CreditService: wallet & FIFO credit usage
+
+No Stripe logic yet — fully testable offline.
+
+4️⃣ Invoice System (Draft-Only for Now)
+
+Invoices are generated from billing previews:
+
+Canonical invoice types
+
+Canonical invoice line types
+
+Accounting-safe math (qty × unit_price = amount)
+
+Draft lifecycle only (no DB writes yet)
+
+🧾 Canonical Enums (Locked)
+Invoice Types
+ppo
+subscription_overage
+adjustment
+refund
+
+Invoice Status
+draft
+pending_payment
+paid
+refunded
+
+Invoice Line Types
+weight
+minimum_adjustment
+pickup_fee
+service_fee
+overage
+credit
+tax
+
+🌐 API Endpoints (v1)
+
+Base URL:
+
+/api/v1
+
+Pickups
+POST /pickups
+
+Subscriptions
+POST /subscriptions
+POST /subscriptions/{id}/activate
+POST /subscriptions/{id}/cancel
+
+Billing
+POST /billing/ppo/preview
+
+Credits
+GET /credits
+
+
+⚠️ Authentication middleware is intentionally disabled for now
+
+⚙️ Laravel 12 Routing Note (Important)
+
+Laravel 12 does not auto-load API routes.
+
+Ensure bootstrap/app.php contains:
+
+->withRouting(
+    web: __DIR__.'/../routes/web.php',
+    api: __DIR__.'/../routes/api.php',
+    commands: __DIR__.'/../routes/console.php',
+    health: '/up',
+)
+
+
+Without this, /api/* routes will not work.
+
+🧪 Development Notes
+
+Pickup & billing APIs return JSON previews
+
+No DB persistence for pickups or invoices yet
+
+Temporary fallback user may be used during development
+
+All services are safe to unit test independently
+
+🔐 Authentication (Deferred)
+
+Auth strategy (Sanctum / Breeze / JWT) will be decided later.
+
+Current design ensures:
+
+No refactor required when auth is added
+
+$request->user() can be plugged in later
+
+Admin & CSR roles already modeled
+
+🚀 Upcoming Milestones
+
+Invoice persistence & migrations
+
+InvoiceController & admin APIs
+
+Stripe payments & webhooks
+
+Pickup scheduling & cron jobs
+
+Auth & role middleware
+
+Admin dashboard support
+
+👨‍💻 Developer Notes
+
+This project is built with:
+
+Laravel 12
+
+PHP 8.2+
+
+Service-driven architecture
+
+API-first mindset
+
+The codebase prioritizes clarity, auditability, and scalability over quick hacks.
+
+📄 License
+
+Private / Proprietary
+All rights reserved.

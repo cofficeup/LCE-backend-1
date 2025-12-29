@@ -6,13 +6,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class InvoiceLine extends Model
 {
-    protected $table = 'lce_user_invoice_line';
-
     protected $fillable = [
         'invoice_id',
         'type',
+        'description',
         'quantity',
         'unit_price',
-        'total',
+        'amount',
     ];
+
+    public function invoice()
+    {
+        return $this->belongsTo(Invoice::class);
+    }
 }

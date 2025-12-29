@@ -6,26 +6,31 @@ use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
 {
-    protected $table = 'lce_user_invoice';
-
     protected $fillable = [
         'user_id',
         'pickup_id',
         'subscription_id',
-        'order_type',
-        'sub_total',
-        'discount',
-        'total',
+        'type',
         'status',
+        'currency',
+        'subtotal',
+        'tax',
+        'total',
+        'metadata',
+        'issued_at',
+        'paid_at',
+        'refunded_at',
+    ];
+
+    protected $casts = [
+        'metadata' => 'array',
+        'issued_at' => 'datetime',
+        'paid_at' => 'datetime',
+        'refunded_at' => 'datetime',
     ];
 
     public function lines()
     {
-        return $this->hasMany(InvoiceLine::class, 'invoice_id');
-    }
-
-    public function pickup()
-    {
-        return $this->belongsTo(Pickup::class, 'pickup_id');
+        return $this->hasMany(InvoiceLine::class);
     }
 }
