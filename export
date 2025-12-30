@@ -1,0 +1,2 @@
+"Invoice ID","User ID",Type,Status,Subtotal,Tax,Total,Currency,"Created At"
+1,1,ppo,paid,38.00,0.00,38.00,USD,"2025-12-30 04:32:35"

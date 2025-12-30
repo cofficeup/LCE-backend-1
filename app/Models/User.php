@@ -2,10 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class User extends Model
+class User extends Authenticatable
 {
+    use HasApiTokens, HasFactory, Notifiable;
+
     protected $table = 'lce_user_info';
 
     protected $fillable = [
@@ -20,9 +25,14 @@ class User extends Model
 
     protected $hidden = [
         'password',
+        'remember_token',
     ];
 
-    // Relationships
+    /**
+     * ------------------
+     * Relationships
+     * ------------------
+     */
     public function pickups()
     {
         return $this->hasMany(Pickup::class, 'user_id');
@@ -53,8 +63,18 @@ class User extends Model
         return $this->belongsTo(UserSubscription::class, 'subscription_id');
     }
 
+    /**
+     * ------------------
+     * Roles & Permissions
+     * ------------------
+     */
     public function roles()
     {
         return $this->belongsToMany(Role::class, 'user_roles');
+    }
+
+    public function hasRole(string $role): bool
+    {
+        return $this->roles()->where('name', $role)->exists();
     }
 }

@@ -2,8 +2,18 @@
 
 namespace App\Services\Invoice;
 
+use App\Models\Invoice;
+use App\Repositories\InvoiceRepository;
+
 class InvoiceService
 {
+    protected InvoiceRepository $repo;
+
+    public function __construct(InvoiceRepository $repo)
+    {
+        $this->repo = $repo;
+    }
+
     const INVOICE_TYPES = ['ppo', 'subscription_overage', 'adjustment', 'refund'];
     const STATUSES = ['draft', 'pending_payment', 'paid', 'refunded'];
     const LINE_TYPES = [
@@ -17,10 +27,11 @@ class InvoiceService
     ];
 
     /**
-     * Create a draft invoice from a billing preview.
-     * - No DB writes
-     * - Accounting-safe math
+     * -----------------------------
+     * INVOICE CREATION (DRAFT)
+     * -----------------------------
      */
+
     public function createDraft(
         int $userId,
         string $invoiceType,
@@ -44,22 +55,22 @@ class InvoiceService
 
             // PPO
             if ($invoiceType === 'ppo') {
-                // Weight line (strict math)
                 if (isset($pricing['weight_lbs'], $pricing['price_per_lb'])) {
                     $weightAmount = $pricing['weight_lbs'] * $pricing['price_per_lb'];
+
                     $lines[] = $this->line(
                         'weight',
                         'Laundry service (by weight)',
                         (float) $pricing['weight_lbs'],
                         (float) $pricing['price_per_lb']
                     );
+
                     $subtotal += $weightAmount;
                 }
 
-                // Minimum adjustment (if applied)
+                // Minimum adjustment
                 if (!empty($pricing['minimum_applied']) && isset($pricing['base_total'])) {
-                    $current = $subtotal;
-                    $adjustment = max(0, (float) $pricing['base_total'] - $current);
+                    $adjustment = max(0, (float) $pricing['base_total'] - $subtotal);
 
                     if ($adjustment > 0) {
                         $lines[] = $this->line(
@@ -130,7 +141,7 @@ class InvoiceService
         // 3) Totals
         // -------------------------
         $subtotal = round($subtotal, 2);
-        $tax = 0.0; // future
+        $tax = 0.0;
         $total = max(0.0, round($subtotal + $tax, 2));
 
         // -------------------------
@@ -147,7 +158,6 @@ class InvoiceService
             'tax' => $tax,
             'total' => $total,
             'metadata' => [],
-            // NOTE: no issued_at for drafts
         ];
 
         return [
@@ -161,10 +171,94 @@ class InvoiceService
         ];
     }
 
+    public function createAndPersistDraft(
+        int $userId,
+        string $invoiceType,
+        array $billingPreview,
+        ?int $pickupId = null,
+        ?int $subscriptionId = null,
+        string $currency = 'USD'
+    ) {
+        $draft = $this->createDraft(
+            $userId,
+            $invoiceType,
+            $billingPreview,
+            $pickupId,
+            $subscriptionId,
+            $currency
+        );
+
+        return $this->repo->createDraft(
+            $draft['invoice'],
+            $draft['invoice_lines']
+        );
+    }
+
     /**
-     * Helper to build an invoice line.
-     * Enforces: amount === quantity × unit_price
+     * -----------------------------
+     * INVOICE LIFECYCLE TRANSITIONS
+     * -----------------------------
      */
+
+    protected function assertTransitionAllowed(string $from, string $to): void
+    {
+        $allowed = [
+            'draft' => ['pending_payment'],
+            'pending_payment' => ['paid'],
+            'paid' => ['refunded'],
+        ];
+
+        if (!isset($allowed[$from]) || !in_array($to, $allowed[$from], true)) {
+            throw new \DomainException("Invalid invoice state transition: {$from} → {$to}");
+        }
+    }
+
+    public function markPendingPayment(Invoice $invoice): Invoice
+    {
+        $this->assertTransitionAllowed($invoice->status, 'pending_payment');
+
+        $invoice->update([
+            'status' => 'pending_payment',
+            'issued_at' => now(),
+        ]);
+
+        return $invoice;
+    }
+
+    public function markPaid(Invoice $invoice, array $paymentMeta = []): Invoice
+    {
+        $this->assertTransitionAllowed($invoice->status, 'paid');
+
+        $invoice->update([
+            'status' => 'paid',
+            'paid_at' => now(),
+            'metadata' => array_merge($invoice->metadata ?? [], $paymentMeta),
+        ]);
+
+        return $invoice;
+    }
+
+    public function markRefunded(Invoice $invoice, string $reason): Invoice
+    {
+        $this->assertTransitionAllowed($invoice->status, 'refunded');
+
+        $invoice->update([
+            'status' => 'refunded',
+            'refunded_at' => now(),
+            'metadata' => array_merge($invoice->metadata ?? [], [
+                'refund_reason' => $reason,
+            ]),
+        ]);
+
+        return $invoice;
+    }
+
+    /**
+     * -----------------------------
+     * HELPERS
+     * -----------------------------
+     */
+
     protected function line(
         string $type,
         string $description,

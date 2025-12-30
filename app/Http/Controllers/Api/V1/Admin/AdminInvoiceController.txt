@@ -1,0 +1,145 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Invoice;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Services\Invoice\InvoiceService;
+
+
+class AdminInvoiceController extends Controller
+{
+    /**
+     * GET /api/v1/admin/invoices
+     * Admin invoice list with filters
+     */
+    public function index(Request $request)
+    {
+        $query = Invoice::query()->with('lines')->latest();
+
+        // ---- Filters ----
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
+        }
+
+        if ($request->filled('from')) {
+            $query->whereDate('created_at', '>=', $request->from);
+        }
+
+        if ($request->filled('to')) {
+            $query->whereDate('created_at', '<=', $request->to);
+        }
+
+        if ($request->filled('min')) {
+            $query->where('total', '>=', $request->min);
+        }
+
+        if ($request->filled('max')) {
+            $query->where('total', '<=', $request->max);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $query->paginate(25),
+        ]);
+    }
+
+    /**
+     * GET /api/v1/admin/invoices/export
+     * Export filtered invoices as CSV
+     */
+    public function export(Request $request): StreamedResponse
+    {
+        $query = Invoice::query()->with('lines')->latest();
+
+        // Same filters as index
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
+        }
+        if ($request->filled('from')) {
+            $query->whereDate('created_at', '>=', $request->from);
+        }
+        if ($request->filled('to')) {
+            $query->whereDate('created_at', '<=', $request->to);
+        }
+
+        $invoices = $query->get();
+
+        return response()->streamDownload(function () use ($invoices) {
+
+            $handle = fopen('php://output', 'w');
+
+            // CSV Header
+            fputcsv($handle, [
+                'Invoice ID',
+                'User ID',
+                'Type',
+                'Status',
+                'Subtotal',
+                'Tax',
+                'Total',
+                'Currency',
+                'Created At'
+            ]);
+
+            foreach ($invoices as $invoice) {
+                fputcsv($handle, [
+                    $invoice->id,
+                    $invoice->user_id,
+                    $invoice->type,
+                    $invoice->status,
+                    $invoice->subtotal,
+                    $invoice->tax,
+                    $invoice->total,
+                    $invoice->currency,
+                    $invoice->created_at,
+                ]);
+            }
+
+            fclose($handle);
+        }, 'invoices_export.csv');
+    }
+    /**
+     * POST /api/v1/admin/invoices/{invoice}/refund
+     * Refund a paid invoice
+     */
+    public function refund(Request $request, Invoice $invoice, InvoiceService $invoiceService)
+    {
+        $request->validate([
+            'reason' => 'required|string|max:255',
+        ]);
+
+        if ($invoice->status !== 'paid') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only paid invoices can be refunded.',
+            ], 422);
+        }
+
+        $invoice = $invoiceService->markRefunded(
+            $invoice,
+            $request->reason
+        );
+
+        return response()->json([
+            'success' => true,
+            'data' => $invoice->fresh()->load('lines'),
+        ]);
+    }
+}

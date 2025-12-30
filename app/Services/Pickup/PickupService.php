@@ -49,10 +49,10 @@ class PickupService
         // Get user ID  Newly Add********
         $userId = $user->id ?? 1;
 
-        // Create invoice draft
+        // Create invoice draft (preview only, not persisted)
         $invoicePreview = $this->invoices->createDraft(
             userId: $userId,
-            invoiceType: 'PPO',
+            invoiceType: 'ppo',
             billingPreview: $billingPreview,
             pickupId: null
         );
@@ -131,7 +131,7 @@ class PickupService
 
         $invoicePreview = $this->invoices->createDraft(
             userId: $userId,
-            invoiceType: 'subscription',
+            invoiceType: 'subscription_overage',
             billingPreview: $billingPreview,
             pickupId: null,
             subscriptionId: $subscription->id
