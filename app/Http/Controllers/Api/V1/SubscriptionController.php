@@ -43,10 +43,20 @@ class SubscriptionController extends Controller
 
     /**
      * Activate subscription (after payment)
+     * Ownership check: user can only activate their own subscriptions
      */
-    public function activate($id)
+    public function activate(Request $request, $id)
     {
+        $user = $request->user();
         $subscription = UserSubscription::findOrFail($id);
+
+        // Ownership check
+        if ($subscription->user_id !== $user->id && !$user->hasRole('admin')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized to activate this subscription.',
+            ], 403);
+        }
 
         $activated = $this->subscriptions->activate($subscription);
 
@@ -58,10 +68,20 @@ class SubscriptionController extends Controller
 
     /**
      * Cancel subscription
+     * Ownership check: user can only cancel their own subscriptions
      */
     public function cancel(Request $request, $id)
     {
+        $user = $request->user();
         $subscription = UserSubscription::findOrFail($id);
+
+        // Ownership check
+        if ($subscription->user_id !== $user->id && !$user->hasRole('admin')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized to cancel this subscription.',
+            ], 403);
+        }
 
         $cancelled = $this->subscriptions->cancel(
             $subscription,
