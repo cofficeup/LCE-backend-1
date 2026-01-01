@@ -67,6 +67,9 @@ class AuthController extends Controller
             ]);
         }
 
+        // Revoke all previous tokens (prevents multiple active sessions)
+        $user->tokens()->delete();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([

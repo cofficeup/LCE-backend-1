@@ -4,12 +4,19 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
-use App\Services\Invoice\InvoiceService;
+use App\Services\Payment\PaymentService;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminInvoiceController extends Controller
 {
+    protected PaymentService $paymentService;
+
+    public function __construct(PaymentService $paymentService)
+    {
+        $this->paymentService = $paymentService;
+    }
+
     public function index(Request $request)
     {
         $query = Invoice::query()->with('lines')->latest();
@@ -52,7 +59,7 @@ class AdminInvoiceController extends Controller
     {
         $query = Invoice::query()->latest();
 
-        foreach (['status','type','user_id'] as $field) {
+        foreach (['status', 'type', 'user_id'] as $field) {
             if ($request->filled($field)) {
                 $query->where($field, $request->$field);
             }
@@ -72,8 +79,15 @@ class AdminInvoiceController extends Controller
             $handle = fopen('php://output', 'w');
 
             fputcsv($handle, [
-                'Invoice ID','User ID','Type','Status',
-                'Subtotal','Tax','Total','Currency','Created At'
+                'Invoice ID',
+                'User ID',
+                'Type',
+                'Status',
+                'Subtotal',
+                'Tax',
+                'Total',
+                'Currency',
+                'Created At'
             ]);
 
             foreach ($invoices as $invoice) {
@@ -94,7 +108,10 @@ class AdminInvoiceController extends Controller
         }, 'invoices_export.csv');
     }
 
-    public function refund(Request $request, Invoice $invoice, InvoiceService $invoiceService)
+    /**
+     * Refund an invoice via Stripe.
+     */
+    public function refund(Request $request, Invoice $invoice)
     {
         $request->validate([
             'reason' => 'required|string|max:255',
@@ -107,14 +124,31 @@ class AdminInvoiceController extends Controller
             ], 422);
         }
 
-        $invoice = $invoiceService->markRefunded(
-            $invoice,
-            $request->reason
-        );
+        try {
+            $payment = $this->paymentService->processRefund(
+                $invoice,
+                $request->reason,
+                $request->user() // admin user for audit log
+            );
 
-        return response()->json([
-            'success' => true,
-            'data' => $invoice->fresh()->load('lines'),
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Refund processed successfully.',
+                'data' => [
+                    'invoice' => $invoice->fresh()->load('lines'),
+                    'payment' => $payment,
+                ],
+            ]);
+        } catch (\DomainException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Refund failed. Please try again.',
+            ], 500);
+        }
     }
 }

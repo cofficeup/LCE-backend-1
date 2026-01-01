@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\V1\PickupController;
 use App\Http\Controllers\Api\V1\CreditController;
 use App\Http\Controllers\Api\V1\BillingController;
 use App\Http\Controllers\Api\V1\InvoiceController;
+use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\StripeWebhookController;
 use App\Http\Controllers\Api\V1\Admin\AdminInvoiceController;
 use App\Http\Controllers\Api\V1\Admin\AdminDashboardController;
 
@@ -68,7 +70,21 @@ Route::prefix('v1')
         Route::get('/invoices', [InvoiceController::class, 'index']);
         Route::get('/invoices/{invoice}', [InvoiceController::class, 'show']);
         Route::post('/invoices/{invoice}/pay', [InvoiceController::class, 'pay']);
+
+        // Payments
+        Route::post('/payments/intent', [PaymentController::class, 'createIntent']);
+        Route::get('/payments/status/{invoice}', [PaymentController::class, 'status']);
     });
+
+
+/*
+|--------------------------------------------------------------------------
+| Stripe Webhook (No Auth - Uses Signature Verification)
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/v1/webhooks/stripe', [StripeWebhookController::class, 'handle'])
+    ->withoutMiddleware(['throttle:api']);
 
 
 /*
